@@ -27,6 +27,8 @@ app.use(cookieParser());
 
 let db;
 let collections;
+let databaseReady = false;
+let databaseError = null;
 
 function asObjectId(id) {
   return ObjectId.isValid(id) ? new ObjectId(id) : null;
@@ -195,7 +197,38 @@ async function seedDatabase() {
 }
 
 app.get("/", (req, res) => {
-  res.json({ message: "RecipeHub API is running", database: Boolean(db) });
+  res.json({ message: "RecipeHub API is running", database: databaseReady });
+});
+
+app.get("/health", async (req, res) => {
+  if (!databaseReady) {
+    return res.status(503).json({
+      status: "unavailable",
+      database: "disconnected",
+      message: "The API is running, but MongoDB is not connected.",
+      ...(databaseError ? { databaseError } : {}),
+    });
+  }
+
+  try {
+    await db.command({ ping: 1 });
+    return res.json({ status: "ok", database: "connected" });
+  } catch {
+    return res.status(503).json({
+      status: "unavailable",
+      database: "disconnected",
+      message: "The API is running, but MongoDB is not reachable.",
+    });
+  }
+});
+
+app.use("/api", (req, res, next) => {
+  if (!databaseReady) {
+    return res.status(503).json({
+      message: "RecipeHub database is unavailable. Check the backend MongoDB configuration.",
+    });
+  }
+  next();
 });
 
 app.post("/api/auth/register", async (req, res) => {
@@ -482,38 +515,75 @@ app.get("/api/admin/transactions", requireAuth, requireAdmin, async (req, res) =
   res.json({ payments });
 });
 
-async function start() {
+async function connectDatabase() {
   if (!mongoUri) {
-    throw new Error("MONGODB_URI is required in backend .env");
+    throw new Error("MONGODB_URI is missing from backend .env");
   }
   if (!jwtSecret || jwtSecret.length < 32) {
     throw new Error("JWT_SECRET must contain at least 32 characters in backend .env");
   }
   const client = new MongoClient(mongoUri);
-  await client.connect();
-  db = client.db(process.env.DB_NAME || "recipehub");
-  collections = {
-    users: db.collection("users"),
-    recipes: db.collection("recipes"),
-    favorites: db.collection("favorites"),
-    reports: db.collection("reports"),
-    payments: db.collection("payments"),
-  };
-  await collections.users.createIndex({ email: 1 }, { unique: true });
-  await collections.favorites.createIndex({ userEmail: 1, recipeId: 1 }, { unique: true });
-  await seedDatabase();
+  try {
+    await client.connect();
+    const connectedDb = client.db(process.env.DB_NAME || "recipehub");
+    const connectedCollections = {
+      users: connectedDb.collection("users"),
+      recipes: connectedDb.collection("recipes"),
+      favorites: connectedDb.collection("favorites"),
+      reports: connectedDb.collection("reports"),
+      payments: connectedDb.collection("payments"),
+    };
+    db = connectedDb;
+    collections = connectedCollections;
+    await collections.users.createIndex({ email: 1 }, { unique: true });
+    await collections.favorites.createIndex({ userEmail: 1, recipeId: 1 }, { unique: true });
+    await seedDatabase();
+    databaseReady = true;
+    databaseError = null;
+    console.log("RecipeHub connected to MongoDB.");
+  } catch (error) {
+    db = null;
+    collections = null;
+    databaseReady = false;
+    await client.close().catch(() => {});
+    throw error;
+  }
+}
+
+async function keepDatabaseConnected() {
+  let retryDelay = 1000;
+
+  while (!databaseReady) {
+    try {
+      await connectDatabase();
+      return;
+    } catch (error) {
+      databaseError =
+        error.code === 8000 || error.codeName === "AtlasError"
+          ? "Atlas rejected MongoDB authentication. Verify the Atlas Database Access username and password."
+          : error.message || "MongoDB connection failed.";
+      console.error(`MongoDB unavailable: ${databaseError}`);
+      console.error(`Retrying MongoDB connection in ${Math.round(retryDelay / 1000)}s.`);
+      await new Promise((resolve) => setTimeout(resolve, retryDelay));
+      retryDelay = Math.min(retryDelay * 2, 60000);
+    }
+  }
+}
+
+function start() {
+  if (!jwtSecret || jwtSecret.length < 32) {
+    throw new Error("JWT_SECRET must contain at least 32 characters in backend .env");
+  }
+
   app.listen(port, () => {
     console.log(`RecipeHub API running on http://localhost:${port}`);
+    void keepDatabaseConnected();
   });
 }
 
-start().catch((error) => {
-  if (error.code === 8000 || error.codeName === "AtlasError") {
-    console.error(
-      "MongoDB rejected the credentials. Check that MONGODB_URI uses an Atlas Database Access user (not your Atlas website login), and that the same valid URI is set in both app environment files."
-    );
-    process.exit(1);
-  }
+try {
+  start();
+} catch (error) {
   console.error("Failed to start RecipeHub API", error);
   process.exit(1);
-});
+}
