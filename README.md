@@ -17,7 +17,7 @@ Fill in `.env` before starting the API:
 
 - `MONGODB_URI`: MongoDB Atlas connection string using a **Database Access**
   user, not the Atlas website login.
-- `DB_NAME`: database name (defaults to `recipehub`).
+- `DB_NAME`: database name (defaults to `assignment-10`).
 - `JWT_SECRET`: a private secret with at least 32 characters. It must match the
   frontend server's `JWT_SECRET`.
 - `CLIENT_ORIGIN`: frontend origin (defaults to `http://localhost:3000`).
