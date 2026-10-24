@@ -197,7 +197,7 @@ async function seedDatabase() {
 }
 
 app.get("/", (req, res) => {
-  res.json({ message: "RecipeHub API is running", database: databaseReady });
+  res.send("Hello World!");
 });
 
 app.get("/health", async (req, res) => {
