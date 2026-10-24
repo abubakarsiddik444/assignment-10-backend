@@ -508,6 +508,12 @@ async function start() {
 }
 
 start().catch((error) => {
+  if (error.code === 8000 || error.codeName === "AtlasError") {
+    console.error(
+      "MongoDB rejected the credentials. Check that MONGODB_URI uses an Atlas Database Access user (not your Atlas website login), and that the same valid URI is set in both app environment files."
+    );
+    process.exit(1);
+  }
   console.error("Failed to start RecipeHub API", error);
   process.exit(1);
 });
