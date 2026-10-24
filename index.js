@@ -70,14 +70,43 @@ function setAuthCookie(res, token) {
 async function getUserFromRequest(req) {
   const token = req.cookies?.[cookieName] || req.headers.authorization?.replace("Bearer ", "");
   if (!token) return null;
+
+  let payload;
   try {
-    const payload = jwt.verify(token, jwtSecret);
-    const user = await collections.users.findOne({ _id: new ObjectId(payload.userId) });
-    if (!user || user.isBlocked) return null;
-    return user;
+    payload = jwt.verify(token, jwtSecret);
   } catch {
     return null;
   }
+
+  if (!payload.email) return null;
+  let user = await collections.users.findOne({
+    email: String(payload.email).toLowerCase(),
+  });
+  if (!user && payload.userId) {
+    const now = new Date();
+    const profile = {
+      authUserId: String(payload.userId),
+      name: String(payload.name || payload.email).slice(0, 100),
+      email: String(payload.email).toLowerCase(),
+      image: String(payload.image || ""),
+      role: "user",
+      isBlocked: false,
+      isPremium: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const result = await collections.users.insertOne(profile);
+    user = { ...profile, _id: result.insertedId };
+  }
+  if (
+    user?.role === "admin" &&
+    payload.emailVerified !== true &&
+    user.authUserId !== String(payload.userId)
+  ) {
+    return null;
+  }
+  if (!user || user.isBlocked) return null;
+  return user;
 }
 
 function requireAuth(req, res, next) {
@@ -85,7 +114,7 @@ function requireAuth(req, res, next) {
     if (!user) return res.status(401).json({ message: "Authentication required" });
     req.user = user;
     next();
-  });
+  }).catch(next);
 }
 
 function requireAdmin(req, res, next) {
@@ -100,22 +129,26 @@ function validatePassword(password) {
 }
 
 async function seedDatabase() {
-  const count = await collections.recipes.countDocuments();
-  if (count) return;
-
   const now = new Date();
-  const admin = {
-    name: "Nadia Rahman",
-    email: "nadia@example.com",
-    image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=400&q=80",
-    role: "admin",
-    isBlocked: false,
-    isPremium: true,
-    password: await bcrypt.hash("Admin123", 10),
-    createdAt: now,
-    updatedAt: now,
-  };
-  await collections.users.updateOne({ email: admin.email }, { $setOnInsert: admin }, { upsert: true });
+  if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
+    const email = process.env.ADMIN_EMAIL.toLowerCase();
+    const admin = {
+      name: process.env.ADMIN_NAME || "RecipeHub Admin",
+      email,
+      image: "",
+      role: "admin",
+      isBlocked: false,
+      isPremium: true,
+      password: await bcrypt.hash(process.env.ADMIN_PASSWORD, 12),
+      createdAt: now,
+      updatedAt: now,
+    };
+    await collections.users.updateOne(
+      { email },
+      { $setOnInsert: admin },
+      { upsert: true }
+    );
+  }
 
   const recipes = [
     ["golden-paneer-bowl", "Golden Paneer Bowl", "Dinner", "Indian", "Medium", "35 min", 842, true, 4.99],
@@ -124,6 +157,13 @@ async function seedDatabase() {
     ["smoky-bean-tacos", "Smoky Bean Tacos", "Street Food", "Mexican", "Easy", "25 min", 1324, false, 2.99],
     ["green-garden-ramen", "Green Garden Ramen", "Vegan", "Japanese", "Hard", "50 min", 986, false, 4.49],
     ["berry-oat-skillet", "Berry Oat Skillet", "Breakfast", "American", "Easy", "18 min", 764, false, 2.49],
+    ["roasted-tomato-orzo", "Roasted Tomato Orzo", "Dinner", "Italian", "Easy", "32 min", 928, true, 3.49],
+    ["coconut-lentil-curry", "Coconut Lentil Curry", "Vegan", "Indian", "Easy", "40 min", 1102, false, 3.99],
+    ["blueberry-lemon-pancakes", "Blueberry Lemon Pancakes", "Breakfast", "American", "Easy", "22 min", 876, false, 2.49],
+    ["crispy-tofu-banh-mi", "Crispy Tofu Banh Mi", "Street Food", "Vietnamese", "Medium", "30 min", 1438, true, 4.25],
+    ["miso-glazed-aubergine", "Miso Glazed Aubergine", "Vegan", "Japanese", "Medium", "38 min", 1015, false, 3.75],
+    ["cardamom-pear-crumble", "Cardamom Pear Crumble", "Dessert", "British", "Easy", "45 min", 1198, false, 3.25],
+    ["herb-chicken-couscous", "Herb Chicken Couscous", "Dinner", "Moroccan", "Medium", "42 min", 1326, false, 4.75],
   ].map(([id, recipeName, category, cuisineType, difficultyLevel, preparationTime, likesCount, isFeatured, price]) => ({
     id,
     recipeName,
@@ -143,7 +183,15 @@ async function seedDatabase() {
     createdAt: now,
     updatedAt: now,
   }));
-  await collections.recipes.insertMany(recipes);
+  await Promise.all(
+    recipes.map((recipe) =>
+      collections.recipes.updateOne(
+        { id: recipe.id },
+        { $setOnInsert: recipe },
+        { upsert: true }
+      )
+    )
+  );
 }
 
 app.get("/", (req, res) => {
