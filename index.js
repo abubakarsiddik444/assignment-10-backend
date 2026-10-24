@@ -5,6 +5,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const Stripe = require("stripe");
 const { MongoClient, ObjectId } = require("mongodb");
+const seedRecipes = require("./data/recipes.json");
 require("dotenv").config();
 
 const app = express();
@@ -152,36 +153,8 @@ async function seedDatabase() {
     );
   }
 
-  const recipes = [
-    ["golden-paneer-bowl", "Golden Paneer Bowl", "Dinner", "Indian", "Medium", "35 min", 842, true, 4.99],
-    ["citrus-salmon-tray", "Citrus Salmon Tray", "Seafood", "Mediterranean", "Easy", "28 min", 1190, true, 5.49],
-    ["mango-sticky-parfait", "Mango Sticky Parfait", "Dessert", "Thai", "Easy", "20 min", 1565, true, 3.99],
-    ["smoky-bean-tacos", "Smoky Bean Tacos", "Street Food", "Mexican", "Easy", "25 min", 1324, false, 2.99],
-    ["green-garden-ramen", "Green Garden Ramen", "Vegan", "Japanese", "Hard", "50 min", 986, false, 4.49],
-    ["berry-oat-skillet", "Berry Oat Skillet", "Breakfast", "American", "Easy", "18 min", 764, false, 2.49],
-    ["roasted-tomato-orzo", "Roasted Tomato Orzo", "Dinner", "Italian", "Easy", "32 min", 928, true, 3.49],
-    ["coconut-lentil-curry", "Coconut Lentil Curry", "Vegan", "Indian", "Easy", "40 min", 1102, false, 3.99],
-    ["blueberry-lemon-pancakes", "Blueberry Lemon Pancakes", "Breakfast", "American", "Easy", "22 min", 876, false, 2.49],
-    ["crispy-tofu-banh-mi", "Crispy Tofu Banh Mi", "Street Food", "Vietnamese", "Medium", "30 min", 1438, true, 4.25],
-    ["miso-glazed-aubergine", "Miso Glazed Aubergine", "Vegan", "Japanese", "Medium", "38 min", 1015, false, 3.75],
-    ["cardamom-pear-crumble", "Cardamom Pear Crumble", "Dessert", "British", "Easy", "45 min", 1198, false, 3.25],
-    ["herb-chicken-couscous", "Herb Chicken Couscous", "Dinner", "Moroccan", "Medium", "42 min", 1326, false, 4.75],
-  ].map(([id, recipeName, category, cuisineType, difficultyLevel, preparationTime, likesCount, isFeatured, price]) => ({
-    id,
-    recipeName,
-    recipeImage: "https://images.unsplash.com/photo-1543353071-873f17a7a088?auto=format&fit=crop&w=1200&q=80",
-    category,
-    cuisineType,
-    difficultyLevel,
-    preparationTime,
-    ingredients: ["Fresh produce", "Spices", "Olive oil", "Herbs"],
-    instructions: `Prepare ${recipeName} with fresh ingredients, balanced seasoning, and a careful finish before serving.`,
-    authorName: "Nadia Rahman",
-    authorEmail: "nadia@example.com",
-    likesCount,
-    isFeatured,
-    status: "published",
-    price,
+  const recipes = seedRecipes.map((recipe) => ({
+    ...recipe,
     createdAt: now,
     updatedAt: now,
   }));
