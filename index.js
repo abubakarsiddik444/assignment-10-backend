@@ -404,15 +404,29 @@ app.get("/api/recipes", async (req, res) => {
   });
 });
 
+app.get("/api/recipes/my", requireAuth, async (req, res) => {
+  const recipes = await collections.recipes
+    .find({ authorEmail: req.user.email, status: { $ne: "deleted" } })
+    .sort({ createdAt: -1 })
+    .toArray();
+  res.json({ recipes: recipes.map(publicRecipe) });
+});
+
 app.get("/api/recipes/:id", async (req, res) => {
-  const recipe = await collections.recipes.findOne(recipeQueryId(req.params.id));
+  const recipe = await collections.recipes.findOne({
+    ...recipeQueryId(req.params.id),
+    status: { $ne: "deleted" },
+  });
   if (!recipe) return res.status(404).json({ message: "Recipe not found" });
   res.json({ recipe: publicRecipe(recipe) });
 });
 
 app.post("/api/recipes", requireAuth, async (req, res) => {
   if (!req.user.isPremium) {
-    const ownCount = await collections.recipes.countDocuments({ authorEmail: req.user.email });
+    const ownCount = await collections.recipes.countDocuments({
+      authorEmail: req.user.email,
+      status: { $ne: "deleted" },
+    });
     if (ownCount >= 2) {
       return res.status(403).json({ message: "Normal users can add only 2 recipes. Become premium for unlimited recipes." });
     }
@@ -442,6 +456,60 @@ app.post("/api/recipes", requireAuth, async (req, res) => {
   }
   const result = await collections.recipes.insertOne(doc);
   res.status(201).json({ recipe: { ...doc, _id: result.insertedId } });
+});
+
+app.patch("/api/recipes/:id", requireAuth, async (req, res) => {
+  const updates = {
+    recipeName: req.body.recipeName,
+    recipeImage: req.body.recipeImage,
+    category: req.body.category,
+    cuisineType: req.body.cuisineType,
+    difficultyLevel: req.body.difficultyLevel,
+    preparationTime: req.body.preparationTime,
+    ingredients: Array.isArray(req.body.ingredients)
+      ? req.body.ingredients
+      : String(req.body.ingredients || "").split("\n").map((item) => item.trim()).filter(Boolean),
+    instructions: req.body.instructions,
+  };
+  if (!updates.recipeName || !updates.category || !updates.instructions) {
+    return res.status(400).json({ message: "Recipe name, category, and instructions are required" });
+  }
+  const result = await collections.recipes.findOneAndUpdate(
+    {
+      ...recipeQueryId(req.params.id),
+      authorEmail: req.user.email,
+      status: { $ne: "deleted" },
+    },
+    { $set: { ...updates, updatedAt: new Date() } },
+    { returnDocument: "after" }
+  );
+  if (!result) {
+    const exists = await collections.recipes.findOne(recipeQueryId(req.params.id));
+    if (!exists || exists.status === "deleted") {
+      return res.status(404).json({ message: "Recipe not found" });
+    }
+    return res.status(403).json({ message: "You can only edit your own recipes" });
+  }
+  res.json({ recipe: publicRecipe(result) });
+});
+
+app.delete("/api/recipes/:id", requireAuth, async (req, res) => {
+  const result = await collections.recipes.updateOne(
+    {
+      ...recipeQueryId(req.params.id),
+      authorEmail: req.user.email,
+      status: { $ne: "deleted" },
+    },
+    { $set: { status: "deleted", updatedAt: new Date() } }
+  );
+  if (!result.matchedCount) {
+    const exists = await collections.recipes.findOne(recipeQueryId(req.params.id));
+    if (!exists || exists.status === "deleted") {
+      return res.status(404).json({ message: "Recipe not found" });
+    }
+    return res.status(403).json({ message: "You can only delete your own recipes" });
+  }
+  res.json({ message: "Recipe deleted" });
 });
 
 app.post("/api/recipes/:id/like", requireAuth, async (req, res) => {
@@ -549,10 +617,16 @@ app.post("/api/recipes/:id/report", requireAuth, async (req, res) => {
 
 app.get("/api/dashboard/overview", requireAuth, async (req, res) => {
   const [totalRecipes, totalFavorites, likesData] = await Promise.all([
-    collections.recipes.countDocuments({ authorEmail: req.user.email }),
+    collections.recipes.countDocuments({
+      authorEmail: req.user.email,
+      status: { $ne: "deleted" },
+    }),
     collections.favorites.countDocuments({ userEmail: req.user.email }),
     collections.recipes
-      .aggregate([{ $match: { authorEmail: req.user.email } }, { $group: { _id: null, likes: { $sum: "$likesCount" } } }])
+      .aggregate([
+        { $match: { authorEmail: req.user.email, status: { $ne: "deleted" } } },
+        { $group: { _id: null, likes: { $sum: "$likesCount" } } },
+      ])
       .toArray(),
   ]);
   res.json({
