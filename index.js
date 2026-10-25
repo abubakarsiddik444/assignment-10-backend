@@ -21,12 +21,17 @@ function respondWithStripeError(res, error, action) {
   const authenticationFailure =
     error.type === "StripeAuthenticationError" || error.code === "api_key_expired";
   const connectionFailure = error.type === "StripeConnectionError";
+  const safeMessage = String(error.message || "Unknown Stripe error").replace(
+    /\b(?:sk|rk|pk)_(?:test|live)_[A-Za-z0-9]+\b|\bwhsec_[A-Za-z0-9]+\b/g,
+    "[redacted Stripe key]",
+  );
 
   console.error(`Stripe ${action} failed.`, {
     type: error.type,
     code: error.code,
     statusCode: error.statusCode,
     requestId: error.requestId,
+    message: safeMessage,
   });
 
   if (authenticationFailure) {
@@ -40,7 +45,7 @@ function respondWithStripeError(res, error, action) {
     });
   }
   return res.status(502).json({
-    message: `Stripe could not ${action}. Verify the Stripe configuration and try again.`,
+    message: `Stripe could not ${action}: ${safeMessage}${error.requestId ? ` (request ${error.requestId})` : ""}`,
   });
 }
 
