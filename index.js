@@ -459,8 +459,8 @@ app.post("/api/recipes", requireAuth, async (req, res) => {
       authorEmail: req.user.email,
       status: { $ne: "deleted" },
     });
-    if (ownCount >= 2) {
-      return res.status(403).json({ message: "Normal users can add only 2 recipes. Become premium for unlimited recipes." });
+    if (ownCount >= 3) {
+      return res.status(403).json({ message: "Free accounts can publish up to 3 recipes. Upgrade to Premium for unlimited publishing." });
     }
   }
   const now = new Date();
