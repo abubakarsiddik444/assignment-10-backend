@@ -21,8 +21,10 @@ Fill in `.env` before starting the API:
 - `JWT_SECRET`: a private secret with at least 32 characters. It must match the
   frontend server's `JWT_SECRET`.
 - `CLIENT_ORIGIN`: frontend origin (defaults to `http://localhost:3000`).
-- `STRIPE_SECRET_KEY`: optional until Stripe Checkout is used; keep it only in
-  this backend `.env`.
+- `STRIPE_SECRET_KEY`: required to create Stripe Checkout sessions; keep it
+  only in this backend `.env`. Use a test-mode key while testing. Hosted
+  Checkout uses inline prices, so Stripe Price IDs and a publishable key are
+  not required by this API flow.
 
 Allow the development machine's IP under Atlas Network Access. If the database
 user password contains URI-reserved characters, percent-encode them in the

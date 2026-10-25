@@ -17,6 +17,93 @@ const stripeSecret = process.env.STRIPE_SECRET_KEY;
 const cookieName = process.env.JWT_COOKIE_NAME || "recipehub_token";
 const stripe = stripeSecret ? new Stripe(stripeSecret) : null;
 
+const additionalSeedRecipes = [
+  ["Smoky Shakshuka Toast", "Breakfast", "Middle Eastern"],
+  ["Cardamom Date Porridge", "Breakfast", "British"],
+  ["Spinach Feta Egg Muffins", "Breakfast", "Greek"],
+  ["Cinnamon Apple French Toast", "Breakfast", "French"],
+  ["Savory Mushroom Breakfast Hash", "Breakfast", "American"],
+  ["Coconut Chia Breakfast Cups", "Breakfast", "Caribbean"],
+  ["Herbed Potato Breakfast Tacos", "Breakfast", "Mexican"],
+  ["Almond Pear Overnight Oats", "Breakfast", "American"],
+  ["Lemon Herb Chicken Pilaf", "Dinner", "Turkish"],
+  ["Slow-Roasted Tomato Gnocchi", "Dinner", "Italian"],
+  ["Ginger Beef Rice Bowls", "Dinner", "Korean"],
+  ["Cumin-Roasted Cauliflower Steaks", "Dinner", "North African"],
+  ["Creamy Tuscan White Beans", "Dinner", "Italian"],
+  ["Sesame Ginger Noodle Bowl", "Dinner", "Chinese"],
+  ["Paprika Chicken with Couscous", "Dinner", "Moroccan"],
+  ["Miso Butter Mushroom Rice", "Dinner", "Japanese"],
+  ["Crispy Potato and Lentil Bake", "Dinner", "Indian"],
+  ["Dark Chocolate Orange Tartlets", "Dessert", "French"],
+  ["Honey Pistachio Yogurt Cake", "Dessert", "Greek"],
+  ["Vanilla Berry Bread Pudding", "Dessert", "American"],
+  ["Brown Butter Peach Crisp", "Dessert", "American"],
+  ["Coconut Lime Rice Pudding", "Dessert", "Thai"],
+  ["Ginger Pear Upside-Down Cake", "Dessert", "British"],
+  ["Strawberry Cardamom Shortcakes", "Dessert", "Indian"],
+  ["Salted Caramel Date Bites", "Dessert", "Middle Eastern"],
+  ["Crispy Tofu Sesame Greens", "Vegan", "Chinese"],
+  ["Roasted Pumpkin Chickpea Stew", "Vegan", "Ethiopian"],
+  ["Lemon Tahini Grain Bowl", "Vegan", "Mediterranean"],
+  ["Spicy Peanut Sweet Potato Noodles", "Vegan", "Thai"],
+  ["Smoky Black Bean Stuffed Peppers", "Vegan", "Mexican"],
+  ["Coconut Spinach Lentil Soup", "Vegan", "Indian"],
+  ["Mushroom Barley Herb Pilaf", "Vegan", "Eastern European"],
+  ["Charred Broccoli Hummus Plate", "Vegan", "Mediterranean"],
+  ["Crispy Fish Taco Sliders", "Street Food", "Mexican"],
+  ["Gochujang Cauliflower Bao", "Street Food", "Korean"],
+  ["Spiced Lamb Pita Pockets", "Street Food", "Lebanese"],
+  ["Crispy Plantain Arepas", "Street Food", "Colombian"],
+  ["Masala Corn Chaat Cups", "Street Food", "Indian"],
+  ["Ginger Chicken Lettuce Wraps", "Street Food", "Chinese"],
+  ["Grilled Halloumi Flatbread", "Street Food", "Cypriot"],
+  ["Tamarind Potato Samosa Chaat", "Street Food", "Indian"],
+  ["Garlic Butter Cod with Greens", "Seafood", "French"],
+  ["Chili Lime Shrimp Skewers", "Seafood", "Mexican"],
+  ["Coconut Curry Mussels", "Seafood", "Thai"],
+  ["Sesame Crusted Tuna Salad", "Seafood", "Japanese"],
+  ["Herbed Salmon with Barley", "Seafood", "Nordic"],
+  ["Saffron Tomato Clam Stew", "Seafood", "Spanish"],
+  ["Crispy Haddock with Pea Mash", "Seafood", "British"],
+  ["Lemon Dill Crab Cakes", "Seafood", "American"],
+  ["Ginger Scallop Rice Noodles", "Seafood", "Vietnamese"],
+].map(([recipeName, category, cuisineType], index) => {
+  const ingredientsByCategory = {
+    Breakfast: ["eggs", "rolled oats", "seasonal fruit", "fresh herbs"],
+    Dinner: ["seasonal vegetables", "whole grains", "aromatic spices", "fresh herbs"],
+    Dessert: ["seasonal fruit", "vanilla", "brown sugar", "lemon zest"],
+    Vegan: ["chickpeas", "leafy greens", "seasonal vegetables", "toasted spices"],
+    "Street Food": ["warm flatbread", "crunchy vegetables", "lime", "chili"],
+    Seafood: ["fresh seafood", "lemon", "olive oil", "garden herbs"],
+  };
+  const imageIds = [
+    "photo-1547592180-85f173990554",
+    "photo-1473093295043-cdd812d0e601",
+    "photo-1512621776951-a57141f2eefd",
+    "photo-1565557623262-b51c2513a641",
+    "photo-1551504734-5ee1c4a1479b",
+    "photo-1467003909585-2f8a72700288",
+  ];
+  return {
+    id: `community-recipe-${String(index + 1).padStart(2, "0")}`,
+    recipeName,
+    recipeImage: `https://images.unsplash.com/${imageIds[index % imageIds.length]}?auto=format&fit=crop&w=1200&q=80`,
+    category,
+    cuisineType,
+    difficultyLevel: index % 3 === 0 ? "Medium" : "Easy",
+    preparationTime: `${20 + (index % 7) * 5} min`,
+    ingredients: ingredientsByCategory[category],
+    instructions: `Prepare ${recipeName.toLowerCase()} by cooking the ingredients until tender and aromatic, then finish with fresh herbs and serve warm.`,
+    authorName: "RecipeHub Community",
+    authorEmail: "community@recipehub.test",
+    likesCount: 0,
+    isFeatured: false,
+    status: "published",
+    price: 2.49 + (index % 6) * 0.5,
+  };
+});
+
 app.use(
   cors({
     origin: [clientOrigin, "http://localhost:3000", "http://127.0.0.1:3000"],
@@ -47,10 +134,18 @@ function publicUser(user) {
     name: user.name,
     email: user.email,
     image: user.image,
+    gender: user.gender || "",
     role: user.role || "user",
     isBlocked: Boolean(user.isBlocked),
     isPremium: Boolean(user.isPremium),
   };
+}
+
+function publicRecipe(recipe) {
+  if (!recipe) return recipe;
+  const result = { ...recipe };
+  delete result.likedBy;
+  return result;
 }
 
 function signToken(user) {
@@ -101,13 +196,6 @@ async function getUserFromRequest(req) {
     const result = await collections.users.insertOne(profile);
     user = { ...profile, _id: result.insertedId };
   }
-  if (
-    user?.role === "admin" &&
-    payload.emailVerified !== true &&
-    user.authUserId !== String(payload.userId)
-  ) {
-    return null;
-  }
   if (!user || user.isBlocked) return null;
   return user;
 }
@@ -153,7 +241,7 @@ async function seedDatabase() {
     );
   }
 
-  const recipes = seedRecipes.map((recipe) => ({
+  const recipes = [...seedRecipes, ...additionalSeedRecipes].map((recipe) => ({
     ...recipe,
     createdAt: now,
     updatedAt: now,
@@ -171,6 +259,42 @@ async function seedDatabase() {
 
 app.get("/", (req, res) => {
   res.send("Hello World!");
+});
+
+app.patch("/api/users/me", requireAuth, async (req, res) => {
+  const updates = {};
+  if (req.body.name !== undefined) {
+    if (typeof req.body.name !== "string" || !req.body.name.trim() || req.body.name.length > 100) {
+      return res.status(400).json({ message: "Name must contain 1-100 characters" });
+    }
+    updates.name = req.body.name.trim();
+  }
+  if (req.body.image !== undefined) {
+    if (typeof req.body.image !== "string") {
+      return res.status(400).json({ message: "Image URL must be a string" });
+    }
+    if (req.body.image) {
+      try {
+        const imageUrl = new URL(req.body.image);
+        if (!["http:", "https:"].includes(imageUrl.protocol)) throw new Error("Invalid protocol");
+      } catch {
+        return res.status(400).json({ message: "Image must be a valid HTTP or HTTPS URL" });
+      }
+    }
+    updates.image = req.body.image;
+  }
+  if (req.body.gender !== undefined) {
+    if (!["Female", "Male", "Other"].includes(req.body.gender)) {
+      return res.status(400).json({ message: "Gender must be Female, Male, or Other" });
+    }
+    updates.gender = req.body.gender;
+  }
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ message: "At least one profile field is required" });
+  }
+  updates.updatedAt = new Date();
+  await collections.users.updateOne({ _id: req.user._id }, { $set: updates });
+  res.json({ user: publicUser({ ...req.user, ...updates }) });
 });
 
 app.get("/health", async (req, res) => {
@@ -254,7 +378,7 @@ app.get("/api/auth/me", async (req, res) => {
 
 app.get("/api/recipes", async (req, res) => {
   const page = Math.max(parseInt(req.query.page || "1", 10), 1);
-  const limit = Math.min(Math.max(parseInt(req.query.limit || "9", 10), 1), 30);
+  const limit = Math.min(Math.max(parseInt(req.query.limit || "9", 10), 1), 100);
   const query = { status: { $ne: "deleted" } };
   if (req.query.featured === "true") query.isFeatured = true;
   if (req.query.category) {
@@ -271,13 +395,19 @@ app.get("/api/recipes", async (req, res) => {
     .skip((page - 1) * limit)
     .limit(limit)
     .toArray();
-  res.json({ recipes, total, page, limit, pages: Math.max(1, Math.ceil(total / limit)) });
+  res.json({
+    recipes: recipes.map(publicRecipe),
+    total,
+    page,
+    limit,
+    pages: Math.max(1, Math.ceil(total / limit)),
+  });
 });
 
 app.get("/api/recipes/:id", async (req, res) => {
   const recipe = await collections.recipes.findOne(recipeQueryId(req.params.id));
   if (!recipe) return res.status(404).json({ message: "Recipe not found" });
-  res.json({ recipe });
+  res.json({ recipe: publicRecipe(recipe) });
 });
 
 app.post("/api/recipes", requireAuth, async (req, res) => {
@@ -315,12 +445,42 @@ app.post("/api/recipes", requireAuth, async (req, res) => {
 });
 
 app.post("/api/recipes/:id/like", requireAuth, async (req, res) => {
+  const userId = String(req.user._id);
   const result = await collections.recipes.findOneAndUpdate(
-    recipeQueryId(req.params.id),
-    { $inc: { likesCount: 1 }, $set: { updatedAt: new Date() } },
+    { ...recipeQueryId(req.params.id), likedBy: { $ne: userId } },
+    {
+      $inc: { likesCount: 1 },
+      $addToSet: { likedBy: userId },
+      $set: { updatedAt: new Date() },
+    },
     { returnDocument: "after" }
   );
-  res.json({ recipe: result });
+  if (!result) {
+    const recipe = await collections.recipes.findOne(recipeQueryId(req.params.id));
+    if (!recipe) return res.status(404).json({ message: "Recipe not found" });
+    return res.json({ recipe: publicRecipe(recipe), liked: false });
+  }
+  res.json({ recipe: publicRecipe(result), liked: true });
+});
+
+app.get("/api/recipes/:id/like", requireAuth, async (req, res) => {
+  const recipe = await collections.recipes
+    .findOne(recipeQueryId(req.params.id), { projection: { likedBy: 1, likesCount: 1 } });
+  if (!recipe) return res.status(404).json({ message: "Recipe not found" });
+  res.json({
+    liked: (recipe.likedBy || []).includes(String(req.user._id)),
+    likesCount: recipe.likesCount || 0,
+  });
+});
+
+app.get("/api/recipes/:id/favorite", requireAuth, async (req, res) => {
+  const recipe = await collections.recipes.findOne(recipeQueryId(req.params.id));
+  if (!recipe) return res.status(404).json({ message: "Recipe not found" });
+  const favorited = await collections.favorites.findOne({
+    userEmail: req.user.email,
+    recipeId: String(recipe._id),
+  });
+  res.json({ favorited: Boolean(favorited) });
 });
 
 app.post("/api/recipes/:id/favorite", requireAuth, async (req, res) => {
@@ -334,6 +494,38 @@ app.post("/api/recipes/:id/favorite", requireAuth, async (req, res) => {
   }
   await collections.favorites.insertOne({ ...filter, userId: String(req.user._id), addedAt: new Date() });
   res.status(201).json({ favorited: true });
+});
+
+app.put("/api/recipes/:id/favorite", requireAuth, async (req, res) => {
+  const recipe = await collections.recipes.findOne(recipeQueryId(req.params.id));
+  if (!recipe) return res.status(404).json({ message: "Recipe not found" });
+  const filter = { userEmail: req.user.email, recipeId: String(recipe._id) };
+  try {
+    await collections.favorites.updateOne(
+      filter,
+      {
+        $setOnInsert: {
+          ...filter,
+          userId: String(req.user._id),
+          addedAt: new Date(),
+        },
+      },
+      { upsert: true }
+    );
+  } catch (error) {
+    if (error.code !== 11000) throw error;
+  }
+  res.json({ favorited: true });
+});
+
+app.delete("/api/recipes/:id/favorite", requireAuth, async (req, res) => {
+  const recipe = await collections.recipes.findOne(recipeQueryId(req.params.id));
+  if (!recipe) return res.status(404).json({ message: "Recipe not found" });
+  await collections.favorites.deleteOne({
+    userEmail: req.user.email,
+    recipeId: String(recipe._id),
+  });
+  res.json({ favorited: false });
 });
 
 app.post("/api/recipes/:id/report", requireAuth, async (req, res) => {
@@ -375,19 +567,37 @@ app.get("/api/favorites", requireAuth, async (req, res) => {
   const favorites = await collections.favorites.find({ userEmail: req.user.email }).toArray();
   const ids = favorites.map((item) => asObjectId(item.recipeId)).filter(Boolean);
   const recipes = ids.length ? await collections.recipes.find({ _id: { $in: ids } }).toArray() : [];
-  res.json({ recipes });
+  res.json({ recipes: recipes.map(publicRecipe) });
 });
 
 app.get("/api/payments/my-recipes", requireAuth, async (req, res) => {
   const payments = await collections.payments.find({ userEmail: req.user.email, recipeId: { $ne: null } }).toArray();
-  res.json({ payments });
+  const recipeIds = payments.map((payment) => asObjectId(payment.recipeId)).filter(Boolean);
+  const recipes = recipeIds.length
+    ? await collections.recipes.find({ _id: { $in: recipeIds } }).toArray()
+    : [];
+  const recipeById = new Map(recipes.map((recipe) => [String(recipe._id), recipe]));
+  res.json({
+    payments: payments.map((payment) => ({
+      ...payment,
+      recipe: publicRecipe(recipeById.get(String(payment.recipeId))),
+    })),
+  });
 });
 
 app.post("/api/payments/create-checkout-session", requireAuth, async (req, res) => {
   if (!stripe) return res.status(500).json({ message: "Stripe secret key is not configured" });
   const type = req.body.type || "premium";
-  const recipe = req.body.recipeId ? await collections.recipes.findOne(recipeQueryId(req.body.recipeId)) : null;
-  const amount = type === "premium" ? 19.99 : Number(recipe?.price || 2.99);
+  if (!["premium", "recipe"].includes(type)) {
+    return res.status(400).json({ message: "Purchase type must be premium or recipe" });
+  }
+  const recipe = type === "recipe" && req.body.recipeId
+    ? await collections.recipes.findOne(recipeQueryId(req.body.recipeId))
+    : null;
+  if (type === "recipe" && !recipe) {
+    return res.status(404).json({ message: "Recipe not found" });
+  }
+  const amount = type === "premium" ? 19.99 : Number(recipe.price);
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     payment_method_types: ["card"],
@@ -458,8 +668,39 @@ app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res) => {
   res.json({ users });
 });
 
+app.patch("/api/admin/users/:id/role", requireAuth, requireAdmin, async (req, res) => {
+  if (!ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: "Invalid user ID" });
+  }
+  if (!["admin", "user"].includes(req.body.role)) {
+    return res.status(400).json({ message: "Role must be admin or user" });
+  }
+  if (String(req.user._id) === req.params.id && req.body.role !== "admin") {
+    return res.status(400).json({ message: "You cannot remove your own admin role" });
+  }
+  const result = await collections.users.updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { role: req.body.role, updatedAt: new Date() } }
+  );
+  if (!result.matchedCount) return res.status(404).json({ message: "User not found" });
+  res.json({ message: "User role updated" });
+});
+
 app.patch("/api/admin/users/:id/block", requireAuth, requireAdmin, async (req, res) => {
-  await collections.users.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { isBlocked: Boolean(req.body.isBlocked) } });
+  if (!ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: "Invalid user ID" });
+  }
+  if (typeof req.body.isBlocked !== "boolean") {
+    return res.status(400).json({ message: "isBlocked must be a boolean" });
+  }
+  if (String(req.user._id) === req.params.id && req.body.isBlocked) {
+    return res.status(400).json({ message: "You cannot block your own account" });
+  }
+  const result = await collections.users.updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { isBlocked: req.body.isBlocked, updatedAt: new Date() } }
+  );
+  if (!result.matchedCount) return res.status(404).json({ message: "User not found" });
   res.json({ message: "User updated" });
 });
 
