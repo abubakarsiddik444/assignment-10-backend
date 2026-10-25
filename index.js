@@ -710,17 +710,44 @@ app.get("/api/admin/reports", requireAuth, requireAdmin, async (req, res) => {
 });
 
 app.patch("/api/admin/reports/:id", requireAuth, requireAdmin, async (req, res) => {
-  await collections.reports.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { status: req.body.status || "dismissed" } });
+  if (!ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: "Invalid report ID" });
+  }
+  const { status } = req.body;
+  if (!["dismissed", "removed"].includes(status)) {
+    return res.status(400).json({ message: "Status must be dismissed or removed" });
+  }
+  const reportId = new ObjectId(req.params.id);
+  const report = await collections.reports.findOne({ _id: reportId });
+  if (!report) return res.status(404).json({ message: "Report not found" });
+  if (status === "removed" && report.recipeId) {
+    await collections.recipes.updateOne(
+      recipeQueryId(report.recipeId),
+      { $set: { status: "deleted", updatedAt: new Date() } }
+    );
+  }
+  await collections.reports.updateOne({ _id: reportId }, { $set: { status } });
   res.json({ message: "Report updated" });
 });
 
 app.patch("/api/admin/recipes/:id/feature", requireAuth, requireAdmin, async (req, res) => {
-  await collections.recipes.updateOne(recipeQueryId(req.params.id), { $set: { isFeatured: Boolean(req.body.isFeatured), updatedAt: new Date() } });
+  if (typeof req.body.isFeatured !== "boolean") {
+    return res.status(400).json({ message: "isFeatured must be a boolean" });
+  }
+  const result = await collections.recipes.updateOne(
+    recipeQueryId(req.params.id),
+    { $set: { isFeatured: req.body.isFeatured, updatedAt: new Date() } }
+  );
+  if (!result.matchedCount) return res.status(404).json({ message: "Recipe not found" });
   res.json({ message: "Recipe featured state updated" });
 });
 
 app.delete("/api/admin/recipes/:id", requireAuth, requireAdmin, async (req, res) => {
-  await collections.recipes.updateOne(recipeQueryId(req.params.id), { $set: { status: "deleted", updatedAt: new Date() } });
+  const result = await collections.recipes.updateOne(
+    recipeQueryId(req.params.id),
+    { $set: { status: "deleted", updatedAt: new Date() } }
+  );
+  if (!result.matchedCount) return res.status(404).json({ message: "Recipe not found" });
   res.json({ message: "Recipe deleted" });
 });
 
