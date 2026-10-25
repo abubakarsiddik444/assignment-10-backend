@@ -17,6 +17,33 @@ const stripeSecret = process.env.STRIPE_SECRET_KEY;
 const cookieName = process.env.JWT_COOKIE_NAME || "recipehub_token";
 const stripe = stripeSecret ? new Stripe(stripeSecret) : null;
 
+function respondWithStripeError(res, error, action) {
+  const authenticationFailure =
+    error.type === "StripeAuthenticationError" || error.code === "api_key_expired";
+  const connectionFailure = error.type === "StripeConnectionError";
+
+  console.error(`Stripe ${action} failed.`, {
+    type: error.type,
+    code: error.code,
+    statusCode: error.statusCode,
+    requestId: error.requestId,
+  });
+
+  if (authenticationFailure) {
+    return res.status(503).json({
+      message: "Stripe rejected the backend secret key. Check STRIPE_SECRET_KEY in the backend .env and restart the backend.",
+    });
+  }
+  if (connectionFailure) {
+    return res.status(503).json({
+      message: "Could not connect to Stripe. Check your network connection and try again.",
+    });
+  }
+  return res.status(502).json({
+    message: `Stripe could not ${action}. Verify the Stripe configuration and try again.`,
+  });
+}
+
 const additionalSeedRecipes = [
   ["Smoky Shakshuka Toast", "Breakfast", "Middle Eastern"],
   ["Cardamom Date Porridge", "Breakfast", "British"],
@@ -672,29 +699,34 @@ app.post("/api/payments/create-checkout-session", requireAuth, async (req, res) 
     return res.status(404).json({ message: "Recipe not found" });
   }
   const amount = type === "premium" ? 19.99 : Number(recipe.price);
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    payment_method_types: ["card"],
-    customer_email: req.user.email,
-    line_items: [
-      {
-        price_data: {
-          currency: "usd",
-          product_data: { name: type === "premium" ? "RecipeHub Premium" : recipe.recipeName },
-          unit_amount: Math.round(amount * 100),
+  let session;
+  try {
+    session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      payment_method_types: ["card"],
+      customer_email: req.user.email,
+      line_items: [
+        {
+          price_data: {
+            currency: "usd",
+            product_data: { name: type === "premium" ? "RecipeHub Premium" : recipe.recipeName },
+            unit_amount: Math.round(amount * 100),
+          },
+          quantity: 1,
         },
-        quantity: 1,
+      ],
+      success_url: `${clientOrigin}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${clientOrigin}/${type === "premium" ? "premium" : `recipes/${req.body.recipeId}`}`,
+      metadata: {
+        type,
+        userId: String(req.user._id),
+        userEmail: req.user.email,
+        recipeId: recipe ? String(recipe._id) : "",
       },
-    ],
-    success_url: `${clientOrigin}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${clientOrigin}/${type === "premium" ? "premium" : `recipes/${req.body.recipeId}`}`,
-    metadata: {
-      type,
-      userId: String(req.user._id),
-      userEmail: req.user.email,
-      recipeId: recipe ? String(recipe._id) : "",
-    },
-  });
+    });
+  } catch (error) {
+    return respondWithStripeError(res, error, "start checkout");
+  }
   res.json({ url: session.url });
 });
 
@@ -703,7 +735,12 @@ app.post("/api/payments/confirm", requireAuth, async (req, res) => {
   if (typeof req.body.sessionId !== "string" || !req.body.sessionId) {
     return res.status(400).json({ message: "Checkout session ID is required" });
   }
-  const session = await stripe.checkout.sessions.retrieve(req.body.sessionId);
+  let session;
+  try {
+    session = await stripe.checkout.sessions.retrieve(req.body.sessionId);
+  } catch (error) {
+    return respondWithStripeError(res, error, "verify the payment");
+  }
   if (
     session.metadata?.userId !== String(req.user._id) ||
     session.metadata?.userEmail !== req.user.email
