@@ -8,6 +8,7 @@ const { MongoClient, ObjectId } = require("mongodb");
 const seedRecipes = require("./data/recipes.json");
 require("dotenv").config();
 
+// Read backend configuration once so the API and database use the same settings.
 const app = express();
 const port = process.env.PORT || 5000;
 const clientOrigin = process.env.CLIENT_ORIGIN || "http://localhost:3000";
@@ -17,6 +18,7 @@ const stripeSecret = process.env.STRIPE_SECRET_KEY;
 const cookieName = process.env.JWT_COOKIE_NAME || "recipehub_token";
 const stripe = stripeSecret ? new Stripe(stripeSecret) : null;
 
+// Keep Stripe failures useful for debugging without exposing secret keys.
 function respondWithStripeError(res, error, action) {
   const authenticationFailure =
     error.type === "StripeAuthenticationError" || error.code === "api_key_expired";
@@ -49,93 +51,64 @@ function respondWithStripeError(res, error, action) {
   });
 }
 
-const additionalSeedRecipes = [
-  ["Smoky Shakshuka Toast", "Breakfast", "Middle Eastern"],
-  ["Cardamom Date Porridge", "Breakfast", "British"],
-  ["Spinach Feta Egg Muffins", "Breakfast", "Greek"],
-  ["Cinnamon Apple French Toast", "Breakfast", "French"],
-  ["Savory Mushroom Breakfast Hash", "Breakfast", "American"],
-  ["Coconut Chia Breakfast Cups", "Breakfast", "Caribbean"],
-  ["Herbed Potato Breakfast Tacos", "Breakfast", "Mexican"],
-  ["Almond Pear Overnight Oats", "Breakfast", "American"],
-  ["Lemon Herb Chicken Pilaf", "Dinner", "Turkish"],
-  ["Slow-Roasted Tomato Gnocchi", "Dinner", "Italian"],
-  ["Ginger Beef Rice Bowls", "Dinner", "Korean"],
-  ["Cumin-Roasted Cauliflower Steaks", "Dinner", "North African"],
-  ["Creamy Tuscan White Beans", "Dinner", "Italian"],
-  ["Sesame Ginger Noodle Bowl", "Dinner", "Chinese"],
-  ["Paprika Chicken with Couscous", "Dinner", "Moroccan"],
-  ["Miso Butter Mushroom Rice", "Dinner", "Japanese"],
-  ["Crispy Potato and Lentil Bake", "Dinner", "Indian"],
-  ["Dark Chocolate Orange Tartlets", "Dessert", "French"],
-  ["Honey Pistachio Yogurt Cake", "Dessert", "Greek"],
-  ["Vanilla Berry Bread Pudding", "Dessert", "American"],
-  ["Brown Butter Peach Crisp", "Dessert", "American"],
-  ["Coconut Lime Rice Pudding", "Dessert", "Thai"],
-  ["Ginger Pear Upside-Down Cake", "Dessert", "British"],
-  ["Strawberry Cardamom Shortcakes", "Dessert", "Indian"],
-  ["Salted Caramel Date Bites", "Dessert", "Middle Eastern"],
-  ["Crispy Tofu Sesame Greens", "Vegan", "Chinese"],
-  ["Roasted Pumpkin Chickpea Stew", "Vegan", "Ethiopian"],
-  ["Lemon Tahini Grain Bowl", "Vegan", "Mediterranean"],
-  ["Spicy Peanut Sweet Potato Noodles", "Vegan", "Thai"],
-  ["Smoky Black Bean Stuffed Peppers", "Vegan", "Mexican"],
-  ["Coconut Spinach Lentil Soup", "Vegan", "Indian"],
-  ["Mushroom Barley Herb Pilaf", "Vegan", "Eastern European"],
-  ["Charred Broccoli Hummus Plate", "Vegan", "Mediterranean"],
-  ["Crispy Fish Taco Sliders", "Street Food", "Mexican"],
-  ["Gochujang Cauliflower Bao", "Street Food", "Korean"],
-  ["Spiced Lamb Pita Pockets", "Street Food", "Lebanese"],
-  ["Crispy Plantain Arepas", "Street Food", "Colombian"],
-  ["Masala Corn Chaat Cups", "Street Food", "Indian"],
-  ["Ginger Chicken Lettuce Wraps", "Street Food", "Chinese"],
-  ["Grilled Halloumi Flatbread", "Street Food", "Cypriot"],
-  ["Tamarind Potato Samosa Chaat", "Street Food", "Indian"],
-  ["Garlic Butter Cod with Greens", "Seafood", "French"],
-  ["Chili Lime Shrimp Skewers", "Seafood", "Mexican"],
-  ["Coconut Curry Mussels", "Seafood", "Thai"],
-  ["Sesame Crusted Tuna Salad", "Seafood", "Japanese"],
-  ["Herbed Salmon with Barley", "Seafood", "Nordic"],
-  ["Saffron Tomato Clam Stew", "Seafood", "Spanish"],
-  ["Crispy Haddock with Pea Mash", "Seafood", "British"],
-  ["Lemon Dill Crab Cakes", "Seafood", "American"],
-  ["Ginger Scallop Rice Noodles", "Seafood", "Vietnamese"],
-].map(([recipeName, category, cuisineType], index) => {
-  const ingredientsByCategory = {
-    Breakfast: ["eggs", "rolled oats", "seasonal fruit", "fresh herbs"],
-    Dinner: ["seasonal vegetables", "whole grains", "aromatic spices", "fresh herbs"],
-    Dessert: ["seasonal fruit", "vanilla", "brown sugar", "lemon zest"],
-    Vegan: ["chickpeas", "leafy greens", "seasonal vegetables", "toasted spices"],
-    "Street Food": ["warm flatbread", "crunchy vegetables", "lime", "chili"],
-    Seafood: ["fresh seafood", "lemon", "olive oil", "garden herbs"],
-  };
-  const imageIds = [
-    "photo-1547592180-85f173990554",
-    "photo-1473093295043-cdd812d0e601",
-    "photo-1512621776951-a57141f2eefd",
-    "photo-1565557623262-b51c2513a641",
-    "photo-1551504734-5ee1c4a1479b",
-    "photo-1467003909585-2f8a72700288",
-  ];
-  return {
-    id: `community-recipe-${String(index + 1).padStart(2, "0")}`,
-    recipeName,
-    recipeImage: `https://images.unsplash.com/${imageIds[index % imageIds.length]}?auto=format&fit=crop&w=1200&q=80`,
-    category,
-    cuisineType,
-    difficultyLevel: index % 3 === 0 ? "Medium" : "Easy",
-    preparationTime: `${20 + (index % 7) * 5} min`,
-    ingredients: ingredientsByCategory[category],
-    instructions: `Prepare ${recipeName.toLowerCase()} by cooking the ingredients until tender and aromatic, then finish with fresh herbs and serve warm.`,
-    authorName: "RecipeHub Community",
-    authorEmail: "community@recipehub.test",
-    likesCount: 0,
-    isFeatured: false,
-    status: "published",
-    price: 2.49 + (index % 6) * 0.5,
-  };
-});
+// Small, predictable sample recipes make a new database useful immediately.
+const ingredientsByCategory = {
+  Breakfast: ["eggs", "rolled oats", "seasonal fruit", "fresh herbs"],
+  Dinner: ["seasonal vegetables", "whole grains", "aromatic spices", "fresh herbs"],
+  Dessert: ["seasonal fruit", "vanilla", "brown sugar", "lemon zest"],
+  Vegan: ["chickpeas", "leafy greens", "seasonal vegetables", "toasted spices"],
+  "Street Food": ["warm flatbread", "crunchy vegetables", "lime", "chili"],
+  Seafood: ["fresh seafood", "lemon", "olive oil", "garden herbs"],
+};
 
+const recipeImages = [
+  "photo-1547592180-85f173990554",
+  "photo-1473093295043-cdd812d0e601",
+  "photo-1512621776951-a57141f2eefd",
+  "photo-1565557623262-b51c2513a641",
+  "photo-1551504734-5ee1c4a1479b",
+  "photo-1467003909585-2f8a72700288",
+];
+
+const communityRecipeGroups = {
+  Breakfast: "Smoky Shakshuka Toast|Middle Eastern; Cardamom Date Porridge|British; Spinach Feta Egg Muffins|Greek; Cinnamon Apple French Toast|French; Savory Mushroom Breakfast Hash|American; Coconut Chia Breakfast Cups|Caribbean; Herbed Potato Breakfast Tacos|Mexican; Almond Pear Overnight Oats|American",
+
+  Dinner: "Lemon Herb Chicken Pilaf|Turkish; Slow-Roasted Tomato Gnocchi|Italian; Ginger Beef Rice Bowls|Korean; Cumin-Roasted Cauliflower Steaks|North African; Creamy Tuscan White Beans|Italian; Sesame Ginger Noodle Bowl|Chinese; Paprika Chicken with Couscous|Moroccan; Miso Butter Mushroom Rice|Japanese; Crispy Potato and Lentil Bake|Indian",
+  Dessert: "Dark Chocolate Orange Tartlets|French; Honey Pistachio Yogurt Cake|Greek; Vanilla Berry Bread Pudding|American; Brown Butter Peach Crisp|American; Coconut Lime Rice Pudding|Thai; Ginger Pear Upside-Down Cake|British; Strawberry Cardamom Shortcakes|Indian; Salted Caramel Date Bites|Middle Eastern",
+
+  Vegan: "Crispy Tofu Sesame Greens|Chinese; Roasted Pumpkin Chickpea Stew|Ethiopian; Lemon Tahini Grain Bowl|Mediterranean; Spicy Peanut Sweet Potato Noodles|Thai; Smoky Black Bean Stuffed Peppers|Mexican; Coconut Spinach Lentil Soup|Indian; Mushroom Barley Herb Pilaf|Eastern European; Charred Broccoli Hummus Plate|Mediterranean",
+  "Street Food": "Crispy Fish Taco Sliders|Mexican; Gochujang Cauliflower Bao|Korean; Spiced Lamb Pita Pockets|Lebanese; Crispy Plantain Arepas|Colombian; Masala Corn Chaat Cups|Indian; Ginger Chicken Lettuce Wraps|Chinese; Grilled Halloumi Flatbread|Cypriot; Tamarind Potato Samosa Chaat|Indian",
+
+  Seafood: "Garlic Butter Cod with Greens|French; Chili Lime Shrimp Skewers|Mexican; Coconut Curry Mussels|Thai; Sesame Crusted Tuna Salad|Japanese; Herbed Salmon with Barley|Nordic; Saffron Tomato Clam Stew|Spanish; Crispy Haddock with Pea Mash|British; Lemon Dill Crab Cakes|American; Ginger Scallop Rice Noodles|Vietnamese",
+};
+
+let recipeIndex = 0;
+const additionalSeedRecipes = Object.entries(communityRecipeGroups).flatMap(
+  ([category, recipes]) =>
+    recipes.split("; ").map((recipe) => {
+      const [recipeName, cuisineType] = recipe.split("|");
+      const index = recipeIndex++;
+      return {
+        id: `community-recipe-${String(index + 1).padStart(2, "0")}`,
+        recipeName,
+        recipeImage: `https://images.unsplash.com/${recipeImages[index % recipeImages.length]}?auto=format&fit=crop&w=1200&q=80`,
+        category,
+        cuisineType,
+        difficultyLevel: index % 3 === 0 ? "Medium" : "Easy",
+        preparationTime: `${20 + (index % 7) * 5} min`,
+        ingredients: ingredientsByCategory[category],
+        instructions: `Prepare ${recipeName.toLowerCase()} by cooking the ingredients until tender and aromatic, then finish with fresh herbs and serve warm.`,
+        authorName: "RecipeHub Community",
+        authorEmail: "community@recipehub.test",
+        likesCount: 0,
+        isFeatured: false,
+        status: "published",
+        price: 2.49 + (index % 6) * 0.5,
+      };
+    }),
+);
+
+// Accept browser requests from the configured frontend and parse JSON and cookies.
 app.use(
   cors({
     origin: [clientOrigin, "http://localhost:3000", "http://127.0.0.1:3000"],
@@ -150,6 +123,7 @@ let collections;
 let databaseReady = false;
 let databaseError = null;
 
+// Shared helpers keep database lookups and API responses consistent.
 function asObjectId(id) {
   return ObjectId.isValid(id) ? new ObjectId(id) : null;
 }
@@ -157,6 +131,14 @@ function asObjectId(id) {
 function recipeQueryId(id) {
   const objectId = asObjectId(id);
   return objectId ? { $or: [{ _id: objectId }, { id }] } : { id };
+}
+
+function publishedRecipeQuery(id) {
+  return { ...recipeQueryId(id), status: "published" };
+}
+
+function favoriteQuery(user, recipe) {
+  return { userEmail: user.email, recipeId: String(recipe._id) };
 }
 
 function publicUser(user) {
@@ -197,6 +179,7 @@ function setAuthCookie(res, token) {
   });
 }
 
+// Resolve signed-in users and bridge Better Auth sessions to backend user records.
 async function getUserFromRequest(req) {
   const token = req.cookies?.[cookieName] || req.headers.authorization?.replace("Bearer ", "");
   if (!token) return null;
@@ -232,6 +215,7 @@ async function getUserFromRequest(req) {
   return user;
 }
 
+// Protect account routes and reserve moderation routes for admins.
 function requireAuth(req, res, next) {
   getUserFromRequest(req).then((user) => {
     if (!user) return res.status(401).json({ message: "Authentication required" });
@@ -251,6 +235,7 @@ function validatePassword(password) {
   return typeof password === "string" && /^(?=.*[a-z])(?=.*[A-Z]).{6,}$/.test(password);
 }
 
+// Create the optional first admin and insert sample recipes only when missing.
 async function seedDatabase() {
   const now = new Date();
   if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
@@ -289,6 +274,7 @@ async function seedDatabase() {
   );
 }
 
+// Basic status, account, profile, and authentication endpoints.
 app.get("/", (req, res) => {
   res.send("Hello World!");
 });
@@ -408,10 +394,11 @@ app.get("/api/auth/me", async (req, res) => {
   res.json({ user: publicUser(user) });
 });
 
+// Public recipes only include approved posts; owners can manage their own drafts.
 app.get("/api/recipes", async (req, res) => {
   const page = Math.max(parseInt(req.query.page || "1", 10), 1);
   const limit = Math.min(Math.max(parseInt(req.query.limit || "9", 10), 1), 100);
-  const query = { status: { $ne: "deleted" } };
+  const query = { status: "published" };
   if (req.query.featured === "true") query.isFeatured = true;
   if (req.query.category) {
     query.category = { $in: String(req.query.category).split(",").filter(Boolean) };
@@ -445,11 +432,17 @@ app.get("/api/recipes/my", requireAuth, async (req, res) => {
 });
 
 app.get("/api/recipes/:id", async (req, res) => {
-  const recipe = await collections.recipes.findOne({
-    ...recipeQueryId(req.params.id),
-    status: { $ne: "deleted" },
-  });
-  if (!recipe) return res.status(404).json({ message: "Recipe not found" });
+  const recipe = await collections.recipes.findOne(recipeQueryId(req.params.id));
+  if (!recipe || recipe.status === "deleted") {
+    return res.status(404).json({ message: "Recipe not found" });
+  }
+  if (recipe.status !== "published") {
+    const user = await getUserFromRequest(req);
+    const isOwner = user?.email === recipe.authorEmail;
+    if (!isOwner && user?.role !== "admin") {
+      return res.status(404).json({ message: "Recipe not found" });
+    }
+  }
   res.json({ recipe: publicRecipe(recipe) });
 });
 
@@ -460,7 +453,7 @@ app.post("/api/recipes", requireAuth, async (req, res) => {
       status: { $ne: "deleted" },
     });
     if (ownCount >= 3) {
-      return res.status(403).json({ message: "Free accounts can publish up to 3 recipes. Upgrade to Premium for unlimited publishing." });
+      return res.status(403).json({ message: "Free accounts can submit up to 3 recipes for approval. Upgrade to Premium for unlimited submissions." });
     }
   }
   const now = new Date();
@@ -478,7 +471,7 @@ app.post("/api/recipes", requireAuth, async (req, res) => {
     authorEmail: req.user.email,
     likesCount: 0,
     isFeatured: false,
-    status: "published",
+    status: req.user.role === "admin" ? "published" : "pending",
     price: Number(req.body.price || 2.99),
     createdAt: now,
     updatedAt: now,
@@ -487,7 +480,12 @@ app.post("/api/recipes", requireAuth, async (req, res) => {
     return res.status(400).json({ message: "Recipe name, category, and instructions are required" });
   }
   const result = await collections.recipes.insertOne(doc);
-  res.status(201).json({ recipe: { ...doc, _id: result.insertedId } });
+  res.status(201).json({
+    message: doc.status === "published"
+      ? "Recipe published."
+      : "Recipe submitted for admin approval.",
+    recipe: { ...doc, _id: result.insertedId },
+  });
 });
 
 app.patch("/api/recipes/:id", requireAuth, async (req, res) => {
@@ -510,9 +508,9 @@ app.patch("/api/recipes/:id", requireAuth, async (req, res) => {
     {
       ...recipeQueryId(req.params.id),
       authorEmail: req.user.email,
-      status: { $ne: "deleted" },
+      status: { $in: ["pending", "published", "rejected"] },
     },
-    { $set: { ...updates, updatedAt: new Date() } },
+    { $set: { ...updates, status: "pending", isFeatured: false, updatedAt: new Date() } },
     { returnDocument: "after" }
   );
   if (!result) {
@@ -544,10 +542,11 @@ app.delete("/api/recipes/:id", requireAuth, async (req, res) => {
   res.json({ message: "Recipe deleted" });
 });
 
+// Signed-in users can like, save, or report published recipes.
 app.post("/api/recipes/:id/like", requireAuth, async (req, res) => {
   const userId = String(req.user._id);
   const result = await collections.recipes.findOneAndUpdate(
-    { ...recipeQueryId(req.params.id), likedBy: { $ne: userId } },
+    { ...recipeQueryId(req.params.id), status: "published", likedBy: { $ne: userId } },
     {
       $inc: { likesCount: 1 },
       $addToSet: { likedBy: userId },
@@ -556,7 +555,7 @@ app.post("/api/recipes/:id/like", requireAuth, async (req, res) => {
     { returnDocument: "after" }
   );
   if (!result) {
-    const recipe = await collections.recipes.findOne(recipeQueryId(req.params.id));
+    const recipe = await collections.recipes.findOne(publishedRecipeQuery(req.params.id));
     if (!recipe) return res.status(404).json({ message: "Recipe not found" });
     return res.json({ recipe: publicRecipe(recipe), liked: false });
   }
@@ -565,7 +564,10 @@ app.post("/api/recipes/:id/like", requireAuth, async (req, res) => {
 
 app.get("/api/recipes/:id/like", requireAuth, async (req, res) => {
   const recipe = await collections.recipes
-    .findOne(recipeQueryId(req.params.id), { projection: { likedBy: 1, likesCount: 1 } });
+    .findOne(
+      publishedRecipeQuery(req.params.id),
+      { projection: { likedBy: 1, likesCount: 1 } }
+    );
   if (!recipe) return res.status(404).json({ message: "Recipe not found" });
   res.json({
     liked: (recipe.likedBy || []).includes(String(req.user._id)),
@@ -573,67 +575,61 @@ app.get("/api/recipes/:id/like", requireAuth, async (req, res) => {
   });
 });
 
-app.get("/api/recipes/:id/favorite", requireAuth, async (req, res) => {
-  const recipe = await collections.recipes.findOne(recipeQueryId(req.params.id));
-  if (!recipe) return res.status(404).json({ message: "Recipe not found" });
-  const favorited = await collections.favorites.findOne({
-    userEmail: req.user.email,
-    recipeId: String(recipe._id),
+app.route("/api/recipes/:id/favorite")
+  .all(requireAuth)
+  .get(async (req, res) => {
+    const recipe = await collections.recipes.findOne(publishedRecipeQuery(req.params.id));
+    if (!recipe) return res.status(404).json({ message: "Recipe not found" });
+    const favorited = await collections.favorites.findOne(favoriteQuery(req.user, recipe));
+    res.json({ favorited: Boolean(favorited) });
+  })
+  .post(async (req, res) => {
+    const recipe = await collections.recipes.findOne(publishedRecipeQuery(req.params.id));
+    if (!recipe) return res.status(404).json({ message: "Recipe not found" });
+
+    const filter = favoriteQuery(req.user, recipe);
+    if (await collections.favorites.findOne(filter)) {
+      await collections.favorites.deleteOne(filter);
+      return res.json({ favorited: false });
+    }
+
+    await collections.favorites.insertOne({
+      ...filter,
+      userId: String(req.user._id),
+      addedAt: new Date(),
+    });
+    res.status(201).json({ favorited: true });
+  })
+  .put(async (req, res) => {
+    const recipe = await collections.recipes.findOne(publishedRecipeQuery(req.params.id));
+    if (!recipe) return res.status(404).json({ message: "Recipe not found" });
+
+    const filter = favoriteQuery(req.user, recipe);
+    try {
+      await collections.favorites.updateOne(
+        filter,
+        { $setOnInsert: { ...filter, userId: String(req.user._id), addedAt: new Date() } },
+        { upsert: true }
+      );
+    } catch (error) {
+      if (error.code !== 11000) throw error;
+    }
+    res.json({ favorited: true });
+  })
+  .delete(async (req, res) => {
+    const recipe = await collections.recipes.findOne(publishedRecipeQuery(req.params.id));
+    if (!recipe) return res.status(404).json({ message: "Recipe not found" });
+
+    await collections.favorites.deleteOne(favoriteQuery(req.user, recipe));
+    res.json({ favorited: false });
   });
-  res.json({ favorited: Boolean(favorited) });
-});
-
-app.post("/api/recipes/:id/favorite", requireAuth, async (req, res) => {
-  const recipe = await collections.recipes.findOne(recipeQueryId(req.params.id));
-  if (!recipe) return res.status(404).json({ message: "Recipe not found" });
-  const filter = { userEmail: req.user.email, recipeId: String(recipe._id) };
-  const existing = await collections.favorites.findOne(filter);
-  if (existing) {
-    await collections.favorites.deleteOne(filter);
-    return res.json({ favorited: false });
-  }
-  await collections.favorites.insertOne({ ...filter, userId: String(req.user._id), addedAt: new Date() });
-  res.status(201).json({ favorited: true });
-});
-
-app.put("/api/recipes/:id/favorite", requireAuth, async (req, res) => {
-  const recipe = await collections.recipes.findOne(recipeQueryId(req.params.id));
-  if (!recipe) return res.status(404).json({ message: "Recipe not found" });
-  const filter = { userEmail: req.user.email, recipeId: String(recipe._id) };
-  try {
-    await collections.favorites.updateOne(
-      filter,
-      {
-        $setOnInsert: {
-          ...filter,
-          userId: String(req.user._id),
-          addedAt: new Date(),
-        },
-      },
-      { upsert: true }
-    );
-  } catch (error) {
-    if (error.code !== 11000) throw error;
-  }
-  res.json({ favorited: true });
-});
-
-app.delete("/api/recipes/:id/favorite", requireAuth, async (req, res) => {
-  const recipe = await collections.recipes.findOne(recipeQueryId(req.params.id));
-  if (!recipe) return res.status(404).json({ message: "Recipe not found" });
-  await collections.favorites.deleteOne({
-    userEmail: req.user.email,
-    recipeId: String(recipe._id),
-  });
-  res.json({ favorited: false });
-});
 
 app.post("/api/recipes/:id/report", requireAuth, async (req, res) => {
   const reason = req.body.reason;
   if (!["Spam", "Offensive Content", "Copyright Issue"].includes(reason)) {
     return res.status(400).json({ message: "Valid report reason required" });
   }
-  const recipe = await collections.recipes.findOne(recipeQueryId(req.params.id));
+  const recipe = await collections.recipes.findOne(publishedRecipeQuery(req.params.id));
   if (!recipe) return res.status(404).json({ message: "Recipe not found" });
   const report = {
     recipeId: String(recipe._id),
@@ -647,22 +643,28 @@ app.post("/api/recipes/:id/report", requireAuth, async (req, res) => {
   res.status(201).json({ report: { ...report, _id: result.insertedId } });
 });
 
+// User dashboard data and recipe purchase history.
 app.get("/api/dashboard/overview", requireAuth, async (req, res) => {
-  const [totalRecipes, totalFavorites, likesData] = await Promise.all([
+  const [totalRecipes, pendingRecipes, totalFavorites, likesData] = await Promise.all([
     collections.recipes.countDocuments({
       authorEmail: req.user.email,
       status: { $ne: "deleted" },
     }),
+    collections.recipes.countDocuments({
+      authorEmail: req.user.email,
+      status: "pending",
+    }),
     collections.favorites.countDocuments({ userEmail: req.user.email }),
     collections.recipes
       .aggregate([
-        { $match: { authorEmail: req.user.email, status: { $ne: "deleted" } } },
+        { $match: { authorEmail: req.user.email, status: { $in: ["pending", "published"] } } },
         { $group: { _id: null, likes: { $sum: "$likesCount" } } },
       ])
       .toArray(),
   ]);
   res.json({
     totalRecipes,
+    pendingRecipes,
     totalFavorites,
     totalLikesReceived: likesData[0]?.likes || 0,
     isPremium: Boolean(req.user.isPremium),
@@ -672,7 +674,9 @@ app.get("/api/dashboard/overview", requireAuth, async (req, res) => {
 app.get("/api/favorites", requireAuth, async (req, res) => {
   const favorites = await collections.favorites.find({ userEmail: req.user.email }).toArray();
   const ids = favorites.map((item) => asObjectId(item.recipeId)).filter(Boolean);
-  const recipes = ids.length ? await collections.recipes.find({ _id: { $in: ids } }).toArray() : [];
+  const recipes = ids.length
+    ? await collections.recipes.find({ _id: { $in: ids }, status: "published" }).toArray()
+    : [];
   res.json({ recipes: recipes.map(publicRecipe) });
 });
 
@@ -680,7 +684,7 @@ app.get("/api/payments/my-recipes", requireAuth, async (req, res) => {
   const payments = await collections.payments.find({ userEmail: req.user.email, recipeId: { $ne: null } }).toArray();
   const recipeIds = payments.map((payment) => asObjectId(payment.recipeId)).filter(Boolean);
   const recipes = recipeIds.length
-    ? await collections.recipes.find({ _id: { $in: recipeIds } }).toArray()
+    ? await collections.recipes.find({ _id: { $in: recipeIds }, status: "published" }).toArray()
     : [];
   const recipeById = new Map(recipes.map((recipe) => [String(recipe._id), recipe]));
   res.json({
@@ -691,6 +695,7 @@ app.get("/api/payments/my-recipes", requireAuth, async (req, res) => {
   });
 });
 
+// Stripe Checkout handles Premium membership and individual recipe purchases.
 app.post("/api/payments/create-checkout-session", requireAuth, async (req, res) => {
   if (!stripe) return res.status(500).json({ message: "Stripe secret key is not configured" });
   const type = req.body.type || "premium";
@@ -698,7 +703,7 @@ app.post("/api/payments/create-checkout-session", requireAuth, async (req, res) 
     return res.status(400).json({ message: "Purchase type must be premium or recipe" });
   }
   const recipe = type === "recipe" && req.body.recipeId
-    ? await collections.recipes.findOne(recipeQueryId(req.body.recipeId))
+    ? await collections.recipes.findOne(publishedRecipeQuery(req.body.recipeId))
     : null;
   if (type === "recipe" && !recipe) {
     return res.status(404).json({ message: "Recipe not found" });
@@ -768,10 +773,11 @@ app.post("/api/payments/confirm", requireAuth, async (req, res) => {
   res.json({ payment });
 });
 
+// Admin-only account, report, recipe moderation, and transaction tools.
 app.get("/api/admin/overview", requireAuth, requireAdmin, async (req, res) => {
   const [totalUsers, totalRecipes, totalPremiumMembers, totalReports] = await Promise.all([
     collections.users.countDocuments(),
-    collections.recipes.countDocuments({ status: { $ne: "deleted" } }),
+    collections.recipes.countDocuments({ status: "published" }),
     collections.users.countDocuments({ isPremium: true }),
     collections.reports.countDocuments({ status: "pending" }),
   ]);
@@ -784,7 +790,8 @@ app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res) => {
 });
 
 app.patch("/api/admin/users/:id/role", requireAuth, requireAdmin, async (req, res) => {
-  if (!ObjectId.isValid(req.params.id)) {
+  const userId = asObjectId(req.params.id);
+  if (!userId) {
     return res.status(400).json({ message: "Invalid user ID" });
   }
   if (!["admin", "user"].includes(req.body.role)) {
@@ -794,7 +801,7 @@ app.patch("/api/admin/users/:id/role", requireAuth, requireAdmin, async (req, re
     return res.status(400).json({ message: "You cannot remove your own admin role" });
   }
   const result = await collections.users.updateOne(
-    { _id: new ObjectId(req.params.id) },
+    { _id: userId },
     { $set: { role: req.body.role, updatedAt: new Date() } }
   );
   if (!result.matchedCount) return res.status(404).json({ message: "User not found" });
@@ -802,7 +809,8 @@ app.patch("/api/admin/users/:id/role", requireAuth, requireAdmin, async (req, re
 });
 
 app.patch("/api/admin/users/:id/block", requireAuth, requireAdmin, async (req, res) => {
-  if (!ObjectId.isValid(req.params.id)) {
+  const userId = asObjectId(req.params.id);
+  if (!userId) {
     return res.status(400).json({ message: "Invalid user ID" });
   }
   if (typeof req.body.isBlocked !== "boolean") {
@@ -812,7 +820,7 @@ app.patch("/api/admin/users/:id/block", requireAuth, requireAdmin, async (req, r
     return res.status(400).json({ message: "You cannot block your own account" });
   }
   const result = await collections.users.updateOne(
-    { _id: new ObjectId(req.params.id) },
+    { _id: userId },
     { $set: { isBlocked: req.body.isBlocked, updatedAt: new Date() } }
   );
   if (!result.matchedCount) return res.status(404).json({ message: "User not found" });
@@ -822,6 +830,14 @@ app.patch("/api/admin/users/:id/block", requireAuth, requireAdmin, async (req, r
 app.get("/api/admin/reports", requireAuth, requireAdmin, async (req, res) => {
   const reports = await collections.reports.find().sort({ createdAt: -1 }).toArray();
   res.json({ reports });
+});
+
+app.get("/api/admin/recipes", requireAuth, requireAdmin, async (req, res) => {
+  const recipes = await collections.recipes
+    .find({ status: { $ne: "deleted" } })
+    .sort({ createdAt: -1 })
+    .toArray();
+  res.json({ recipes: recipes.map(publicRecipe) });
 });
 
 app.patch("/api/admin/reports/:id", requireAuth, requireAdmin, async (req, res) => {
@@ -850,11 +866,24 @@ app.patch("/api/admin/recipes/:id/feature", requireAuth, requireAdmin, async (re
     return res.status(400).json({ message: "isFeatured must be a boolean" });
   }
   const result = await collections.recipes.updateOne(
-    recipeQueryId(req.params.id),
+    { ...recipeQueryId(req.params.id), status: "published" },
     { $set: { isFeatured: req.body.isFeatured, updatedAt: new Date() } }
   );
   if (!result.matchedCount) return res.status(404).json({ message: "Recipe not found" });
   res.json({ message: "Recipe featured state updated" });
+});
+
+app.patch("/api/admin/recipes/:id/status", requireAuth, requireAdmin, async (req, res) => {
+  const { status } = req.body;
+  if (!["published", "rejected"].includes(status)) {
+    return res.status(400).json({ message: "Status must be published or rejected" });
+  }
+  const result = await collections.recipes.updateOne(
+    { ...recipeQueryId(req.params.id), status: { $ne: "deleted" } },
+    { $set: { status, isFeatured: false, updatedAt: new Date() } }
+  );
+  if (!result.matchedCount) return res.status(404).json({ message: "Recipe not found" });
+  res.json({ message: status === "published" ? "Recipe approved." : "Recipe rejected." });
 });
 
 app.delete("/api/admin/recipes/:id", requireAuth, requireAdmin, async (req, res) => {
@@ -871,6 +900,7 @@ app.get("/api/admin/transactions", requireAuth, requireAdmin, async (req, res) =
   res.json({ payments });
 });
 
+// Connect collections, create indexes, seed samples, and retry when MongoDB is down.
 async function connectDatabase() {
   if (!mongoUri) {
     throw new Error("MONGODB_URI is missing from backend .env");
