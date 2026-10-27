@@ -27,37 +27,10 @@ through a same-origin API proxy.
 - MongoDB (Atlas or local)
 - A Stripe secret key for checkout and payment features
 
-## Configure
-
-Create a private `.env` file in this folder. Do not commit it.
-
-```env
-PORT=5000
-CLIENT_ORIGIN=http://localhost:3000
-MONGODB_URI=your-mongodb-connection-string
-DB_NAME=recipehub
-JWT_SECRET=generate-a-private-secret-at-least-32-characters-long
-JWT_COOKIE_NAME=recipehub_token
-STRIPE_SECRET_KEY=your-stripe-test-secret-key
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=use-a-unique-strong-password
-ADMIN_NAME=RecipeHub Admin
-```
-
-`PORT`, `CLIENT_ORIGIN`, `DB_NAME`, and `JWT_COOKIE_NAME` are optional; the
-values above show their local defaults. `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and
-`ADMIN_NAME` are optional and only create the initial admin account. The same
-`MONGODB_URI` and `JWT_SECRET` must be configured in the frontend's private
-`.env.local`. Keep Stripe's secret key in this backend `.env` only.
-
-For MongoDB Atlas, use a **Database Access** user, allow your development
-machine's IP in Network Access, and URL-encode special characters in the
-database password. The API defaults to the `recipehub` database if `DB_NAME`
-is not set.
-
 ## Start the API
 
-Run these commands from the backend folder:
+Configure the backend's private environment and MongoDB connection, then run
+these commands from the backend folder:
 
 ```powershell
 npm ci
