@@ -122,6 +122,14 @@ let db;
 let collections;
 let databaseReady = false;
 let databaseError = null;
+let databaseConnectionPromise = null;
+
+function missingConfiguration() {
+  return [
+    !process.env.JWT_SECRET && "JWT_SECRET",
+    !mongoUri && "MONGODB_URI",
+  ].filter(Boolean);
+}
 
 // Shared helpers keep database lookups and API responses consistent.
 function asObjectId(id) {
@@ -316,13 +324,26 @@ app.patch("/api/users/me", requireAuth, async (req, res) => {
 });
 
 app.get("/health", async (req, res) => {
-  if (!databaseReady) {
+  const missing = missingConfiguration();
+  if (missing.length) {
     return res.status(503).json({
       status: "unavailable",
       database: "disconnected",
-      message: "The API is running, but MongoDB is not connected.",
-      ...(databaseError ? { databaseError } : {}),
+      message: `Backend configuration is missing: ${missing.join(", ")}.`,
     });
+  }
+
+  if (!databaseReady) {
+    try {
+      await ensureDatabaseConnected();
+    } catch {
+      return res.status(503).json({
+        status: "unavailable",
+        database: "disconnected",
+        message: "The API is running, but MongoDB is not connected.",
+        ...(databaseError ? { databaseError } : {}),
+      });
+    }
   }
 
   try {
@@ -338,12 +359,19 @@ app.get("/health", async (req, res) => {
 });
 
 app.use("/api", (req, res, next) => {
-  if (!databaseReady) {
+  const missing = missingConfiguration();
+  if (missing.length) {
     return res.status(503).json({
-      message: "RecipeHub database is unavailable. Check the backend MongoDB configuration.",
+      message: `Backend configuration is missing: ${missing.join(", ")}. Set these environment variables in the deployment settings.`,
     });
   }
-  next();
+
+  ensureDatabaseConnected().then(() => next()).catch((error) => {
+    console.error("Could not connect to MongoDB for API request.", error);
+    res.status(503).json({
+      message: "RecipeHub database is unavailable. Check the backend MongoDB configuration.",
+    });
+  });
 });
 
 app.post("/api/auth/register", async (req, res) => {
@@ -936,18 +964,32 @@ async function connectDatabase() {
   }
 }
 
+function ensureDatabaseConnected() {
+  if (databaseReady) return Promise.resolve();
+  if (!databaseConnectionPromise) {
+    databaseConnectionPromise = connectDatabase()
+      .catch((error) => {
+        databaseError =
+          error.code === 8000 || error.codeName === "AtlasError"
+            ? "Atlas rejected MongoDB authentication. Verify the Atlas Database Access username and password."
+            : error.message || "MongoDB connection failed.";
+        throw error;
+      })
+      .finally(() => {
+        databaseConnectionPromise = null;
+      });
+  }
+  return databaseConnectionPromise;
+}
+
 async function keepDatabaseConnected() {
   let retryDelay = 1000;
 
   while (!databaseReady) {
     try {
-      await connectDatabase();
+      await ensureDatabaseConnected();
       return;
     } catch (error) {
-      databaseError =
-        error.code === 8000 || error.codeName === "AtlasError"
-          ? "Atlas rejected MongoDB authentication. Verify the Atlas Database Access username and password."
-          : error.message || "MongoDB connection failed.";
       console.error(`MongoDB unavailable: ${databaseError}`);
       console.error(`Retrying MongoDB connection in ${Math.round(retryDelay / 1000)}s.`);
       await new Promise((resolve) => setTimeout(resolve, retryDelay));
@@ -967,9 +1009,13 @@ function start() {
   });
 }
 
-try {
-  start();
-} catch (error) {
-  console.error("Failed to start RecipeHub API", error);
-  process.exit(1);
+if (require.main === module) {
+  try {
+    start();
+  } catch (error) {
+    console.error("Failed to start RecipeHub API", error);
+    process.exit(1);
+  }
 }
+
+module.exports = app;

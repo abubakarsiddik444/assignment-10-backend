@@ -50,6 +50,26 @@ Run the syntax check from this folder:
 npm run check
 ```
 
+## Deploy on Vercel
+
+The Express app is exported for Vercel Functions and connects to MongoDB when
+the first API or health request arrives. Add these variables in the Vercel
+project's **Settings → Environment Variables** for every environment you use:
+
+- `JWT_SECRET` — the same value configured in the frontend project; at least
+  32 characters.
+- `MONGODB_URI` — the MongoDB connection string.
+- `DB_NAME` — the database name shared with the frontend.
+- `CLIENT_ORIGIN` — the deployed frontend origin, such as
+  `https://your-frontend.vercel.app`.
+- `STRIPE_SECRET_KEY` — required for payment features.
+
+Do not commit `.env` or paste secret values into source code. After adding or
+changing Vercel environment variables, redeploy the backend. Check
+`https://your-backend.vercel.app/health`; it should return
+`{"status":"ok","database":"connected"}`. If required settings are missing,
+the health response lists their names without exposing values.
+
 ## API guide
 
 All routes below are served by this backend. Authenticated requests from the
